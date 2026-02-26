@@ -1,0 +1,9 @@
+@echo off
+echo Starting Sugarcane NIR Real-Time Web Platform...
+echo Loading Backend Models...
+start cmd /k "call .\.venv\Scripts\activate.bat && uvicorn backend.server:app"
+echo Loading Frontend Interface...
+start cmd /k "cd frontend && npm run dev"
+timeout /t 5 /nobreak > nul
+start http://localhost:5173
+pause
