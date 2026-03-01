@@ -1,9 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import HeroBanner from '../components/dashboard/HeroBanner';
 import KPIRow from '../components/dashboard/KPIRow';
+import QuickActions from '../components/dashboard/QuickActions';
 import ControlPanel from '../components/dashboard/ControlPanel';
 import PolMetric from '../components/dashboard/PolMetric';
 import DigitalTwin from '../components/dashboard/DigitalTwin';
+import SystemHealth from '../components/dashboard/SystemHealth';
 import SpectrumChart from '../components/charts/SpectrumChart';
 import PolHistoryChart from '../components/charts/PolHistoryChart';
 
@@ -16,18 +19,19 @@ const pageVariants = {
 export default function DashboardPage() {
   return (
     <motion.div className="page" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.3 }}>
-      <div className="page-header">
-        <h1 className="page-title">Real-Time Dashboard</h1>
-        <p className="page-subtitle">Live NIR spectroscopy monitoring, prediction & quality control</p>
-      </div>
+      <HeroBanner />
 
       <KPIRow />
+
+      <QuickActions />
 
       <div className="dashboard-grid-top">
         <ControlPanel />
         <PolMetric />
         <DigitalTwin />
       </div>
+
+      <SystemHealth />
 
       <div className="dashboard-grid-bottom">
         <SpectrumChart />

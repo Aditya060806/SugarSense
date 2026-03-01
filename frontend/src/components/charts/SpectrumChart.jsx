@@ -13,25 +13,25 @@ export default function SpectrumChart() {
       <div className="chart-container">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={currentSpectrum}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="wavelength"
-              stroke="#8b949e"
-              tick={{ fill: '#8b949e', fontSize: 11 }}
-              label={{ value: 'Wavelength (nm)', position: 'insideBottom', offset: -5, fill: '#8b949e', fontSize: 11 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 11 }}
+              label={{ value: 'Wavelength (nm)', position: 'insideBottom', offset: -5, fill: '#64748b', fontSize: 11 }}
             />
             <YAxis
               dataKey="absorbance"
-              stroke="#8b949e"
-              tick={{ fill: '#8b949e', fontSize: 11 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 11 }}
               domain={['auto', 'auto']}
-              label={{ value: 'Absorbance', angle: -90, position: 'insideLeft', fill: '#8b949e', fontSize: 11 }}
+              label={{ value: 'Absorbance', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
             />
             <Tooltip
-              contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px' }}
+              contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
               labelFormatter={(v) => `${v} nm`}
             />
-            <Line type="monotone" dataKey="absorbance" stroke="#00d2ff" dot={false} strokeWidth={2} isAnimationActive={false} />
+            <Line type="monotone" dataKey="absorbance" stroke="#0891b2" dot={false} strokeWidth={2} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

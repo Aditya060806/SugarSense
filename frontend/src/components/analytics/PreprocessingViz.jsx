@@ -32,6 +32,8 @@ export default function PreprocessingViz() {
     snv: data.snv[i],
   }));
 
+  const tooltipStyle = { backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '10px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' };
+
   return (
     <GlassCard className="preprocess-card" delay={0.1}>
       <h3 className="card-title"><Layers size={20} /> Preprocessing Pipeline Visualization</h3>
@@ -47,11 +49,11 @@ export default function PreprocessingViz() {
           <div className="chart-container" style={{ height: 180 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                <XAxis dataKey="wv" stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} />
-                <YAxis stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} domain={['auto', 'auto']} />
-                <Tooltip contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="raw" stroke="#8b949e" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="wv" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} />
+                <YAxis stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} domain={['auto', 'auto']} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="raw" stroke="#94a3b8" dot={false} strokeWidth={1.5} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -65,11 +67,11 @@ export default function PreprocessingViz() {
           <div className="chart-container" style={{ height: 180 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                <XAxis dataKey="wv" stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} />
-                <YAxis stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} domain={['auto', 'auto']} />
-                <Tooltip contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="sg" stroke="#ff7b00" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="wv" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} />
+                <YAxis stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} domain={['auto', 'auto']} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="sg" stroke="#f59e0b" dot={false} strokeWidth={1.5} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -83,11 +85,11 @@ export default function PreprocessingViz() {
           <div className="chart-container" style={{ height: 180 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                <XAxis dataKey="wv" stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} />
-                <YAxis stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} domain={['auto', 'auto']} />
-                <Tooltip contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="snv" stroke="#09b850" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="wv" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} />
+                <YAxis stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} domain={['auto', 'auto']} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="snv" stroke="#16a34a" dot={false} strokeWidth={1.5} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

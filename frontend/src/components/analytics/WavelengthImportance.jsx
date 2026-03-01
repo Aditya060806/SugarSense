@@ -23,7 +23,6 @@ export default function WavelengthImportance() {
     );
   }
 
-  // Downsample for readability — show every 5th wavelength
   const step = Math.max(1, Math.floor(data.wavelengths.length / 60));
   const chartData = data.wavelengths
     .filter((_, i) => i % step === 0)
@@ -45,20 +44,20 @@ export default function WavelengthImportance() {
       <div className="chart-container" style={{ height: 280 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="wv"
-              stroke="#8b949e"
-              tick={{ fill: '#8b949e', fontSize: 9 }}
-              label={{ value: 'Wavelength (nm)', position: 'insideBottom', offset: -5, fill: '#8b949e', fontSize: 11 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 9 }}
+              label={{ value: 'Wavelength (nm)', position: 'insideBottom', offset: -5, fill: '#64748b', fontSize: 11 }}
             />
             <YAxis
-              stroke="#8b949e"
-              tick={{ fill: '#8b949e', fontSize: 10 }}
-              label={{ value: 'Coefficient', angle: -90, position: 'insideLeft', fill: '#8b949e', fontSize: 11 }}
+              stroke="#94a3b8"
+              tick={{ fill: '#64748b', fontSize: 10 }}
+              label={{ value: 'Coefficient', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
             />
             <Tooltip
-              contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px' }}
+              contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
               labelFormatter={v => `${v} nm`}
               formatter={(v) => [Number(v).toFixed(6), 'Coefficient']}
             />
@@ -66,8 +65,8 @@ export default function WavelengthImportance() {
               {chartData.map((entry, index) => {
                 const intensity = Math.min(1, entry.absCoeff / (maxAbs * 0.5));
                 const color = entry.coeff >= 0
-                  ? `rgba(9, 184, 80, ${0.3 + 0.7 * intensity})`
-                  : `rgba(255, 51, 102, ${0.3 + 0.7 * intensity})`;
+                  ? `rgba(22, 163, 74, ${0.3 + 0.7 * intensity})`
+                  : `rgba(239, 68, 68, ${0.3 + 0.7 * intensity})`;
                 return <Cell key={index} fill={color} />;
               })}
             </Bar>

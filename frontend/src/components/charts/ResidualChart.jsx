@@ -15,12 +15,12 @@ export function ResidualChart({ predicted = [], actual = [] }) {
       <div className="chart-container" style={{ height: 250 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-            <XAxis dataKey="index" stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 11 }} label={{ value: 'Sample', position: 'insideBottom', offset: -5, fill: '#8b949e' }} />
-            <YAxis stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 11 }} label={{ value: 'Residual', angle: -90, position: 'insideLeft', fill: '#8b949e' }} />
-            <Tooltip contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px' }} formatter={(v) => `${Number(v).toFixed(4)}`} />
-            <ReferenceLine y={0} stroke="#8b949e" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="residual" stroke="#00d2ff" strokeWidth={2} dot={{ r: 3, fill: '#00d2ff' }} isAnimationActive={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="index" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 11 }} label={{ value: 'Sample', position: 'insideBottom', offset: -5, fill: '#64748b' }} />
+            <YAxis stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 11 }} label={{ value: 'Residual', angle: -90, position: 'insideLeft', fill: '#64748b' }} />
+            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} formatter={(v) => `${Number(v).toFixed(4)}`} />
+            <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+            <Line type="monotone" dataKey="residual" stroke="#0891b2" strokeWidth={2} dot={{ r: 3, fill: '#0891b2' }} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -29,7 +29,6 @@ export function ResidualChart({ predicted = [], actual = [] }) {
 }
 
 export function ErrorDistribution({ predicted = [], actual = [] }) {
-  // Build histogram bins
   const residuals = predicted.map((p, i) => p - (actual[i] || 0));
   if (residuals.length < 2) {
     return (
@@ -63,14 +62,14 @@ export function ErrorDistribution({ predicted = [], actual = [] }) {
       <div className="chart-container" style={{ height: 250 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={bins}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-            <XAxis dataKey="range" stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 9 }} angle={-30} />
-            <YAxis stroke="#8b949e" tick={{ fill: '#8b949e', fontSize: 11 }} label={{ value: 'Count', angle: -90, position: 'insideLeft', fill: '#8b949e' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="range" stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 9 }} angle={-30} />
+            <YAxis stroke="#94a3b8" tick={{ fill: '#64748b', fontSize: 11 }} label={{ value: 'Count', angle: -90, position: 'insideLeft', fill: '#64748b' }} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', borderRadius: '8px' }}
+              contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
               labelFormatter={(v) => `Residual: ${v}`}
             />
-            <Bar dataKey="count" fill="#09b850" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="count" fill="#16a34a" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
