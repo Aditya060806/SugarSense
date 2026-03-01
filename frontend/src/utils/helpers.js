@@ -102,6 +102,8 @@ export const API = {
   plsLoadings: () => fetchJSON('/api/pls-loadings'),
   stats: () => fetchJSON('/api/stats'),
   predictionsHistory: () => fetchJSON('/api/predictions-history'),
+  roi: () => fetchJSON('/api/roi'),
+  modelComparison: () => fetchJSON('/api/model-comparison'),
 };
 
 const wsProtocol = API_BASE.startsWith('https') ? 'wss' : 'ws';

@@ -7,6 +7,7 @@ import ControlPanel from '../components/dashboard/ControlPanel';
 import PolMetric from '../components/dashboard/PolMetric';
 import DigitalTwin from '../components/dashboard/DigitalTwin';
 import SystemHealth from '../components/dashboard/SystemHealth';
+import ROICalculator from '../components/dashboard/ROICalculator';
 import SpectrumChart from '../components/charts/SpectrumChart';
 import PolHistoryChart from '../components/charts/PolHistoryChart';
 
@@ -32,6 +33,8 @@ export default function DashboardPage() {
       </div>
 
       <SystemHealth />
+
+      <ROICalculator />
 
       <div className="dashboard-grid-bottom">
         <SpectrumChart />

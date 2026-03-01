@@ -9,12 +9,17 @@ import sys
 import os
 import io
 import scipy.signal
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from datetime import datetime
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import mean_squared_error, r2_score
+from scipy.spatial.distance import mahalanobis
 from fastapi.responses import StreamingResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 from pydantic import BaseModel
 from typing import Optional
 
@@ -42,6 +47,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 
 pls_model = None
+ann_model = None
 wavelengths = None
 wavelengths_plot = None
 X_test = None
@@ -49,6 +55,9 @@ X_test_prep = None
 y_test = None
 iso_forest = None
 model_info_cache = None
+ann_info_cache = None
+train_cov_inv = None
+train_mean = None
 server_start_time = time.time()
 
 # Running session statistics
@@ -98,6 +107,35 @@ try:
         "dataset": "Scio Spectrometer (740–1070 nm)",
     }
     print(f"Model Info: RMSE={rmse:.4f}, R²={r2:.4f}, RPD={rpd:.2f}")
+
+    train_mean = np.mean(X_test_prep, axis=0)
+    cov = np.cov(X_test_prep.T)
+    try:
+        train_cov_inv = np.linalg.pinv(cov)
+    except Exception:
+        train_cov_inv = np.eye(cov.shape[0])
+    print("Mahalanobis confidence scoring initialized.")
+
+    try:
+        ann_model = joblib.load(os.path.join(root_dir, 'ann_model.pkl'))
+        y_pred_ann = ann_model.predict(X_test_prep)
+        rmse_ann = float(np.sqrt(mean_squared_error(y_test, y_pred_ann)))
+        r2_ann = float(r2_score(y_test, y_pred_ann))
+        bias_ann = float(np.mean(y_pred_ann - y_test))
+        rpd_ann = sd_y / rmse_ann if rmse_ann > 0 else 0.0
+        ann_info_cache = {
+            "model_type": "Artificial Neural Network (MLP Regressor)",
+            "rmse": round(rmse_ann, 4),
+            "r2": round(r2_ann, 4),
+            "rpd": round(rpd_ann, 2),
+            "bias": round(bias_ann, 4),
+            "architecture": "64 → 32 (ReLU, early stopping)",
+        }
+        print(f"ANN Model: RMSE={rmse_ann:.4f}, R²={r2_ann:.4f}")
+    except Exception as e:
+        print(f"ANN model not found: {e}")
+        ann_info_cache = None
+
     print("All systems ready.")
 except Exception as e:
     print(f"Error loading models: {e}")
@@ -211,6 +249,46 @@ def get_prediction_pairs():
         "residuals": residuals,
     }
 
+@app.get("/api/model-comparison")
+def get_model_comparison():
+    if model_info_cache is None:
+        return {"error": "Model not loaded"}
+    result = {"pls": model_info_cache}
+    if ann_info_cache:
+        result["ann"] = ann_info_cache
+        y_pred_pls = np.squeeze(pls_model.predict(X_test_prep)).tolist()
+        y_pred_ann = ann_model.predict(X_test_prep).tolist()
+        result["predictions"] = {
+            "pls": y_pred_pls,
+            "ann": y_pred_ann,
+            "actual": y_test.tolist(),
+        }
+    return result
+
+@app.get("/api/roi")
+def get_roi():
+    n = session_stats["total_predictions"]
+    cost_per_lab_test = 15.0
+    lab_time_minutes = 180
+    pol_improvement_pct = 0.2
+    hourly_mill_revenue = 5000.0
+
+    money_saved = n * cost_per_lab_test
+    time_saved_hrs = round((n * lab_time_minutes) / 60, 1)
+    avg_inference = session_stats["sum_inference_ms"] / n if n > 0 else 0
+    yield_gain = n * pol_improvement_pct * 0.01 * hourly_mill_revenue / 60
+    annual_projection = money_saved * (525600 / max(time.time() - server_start_time, 1)) if n > 0 else 0
+
+    return {
+        "samples_analyzed": n,
+        "money_saved_usd": round(money_saved, 2),
+        "time_saved_hours": time_saved_hrs,
+        "yield_improvement_usd": round(yield_gain, 2),
+        "annual_projection_usd": round(min(annual_projection, 999999), 0),
+        "avg_inference_ms": round(avg_inference, 2),
+        "cost_per_lab_test": cost_per_lab_test,
+    }
+
 # ── WebSocket Simulation ─────────────────────────────────────
 @app.websocket("/ws/simulation")
 async def websocket_endpoint(websocket: WebSocket):
@@ -235,9 +313,18 @@ async def websocket_endpoint(websocket: WebSocket):
             is_anomaly = iso_forest.predict(X_live_prep)[0] == -1
             inference_ms = (time.time() - start_time) * 1000
             
+            confidence = 95.0
+            if train_cov_inv is not None and train_mean is not None:
+                try:
+                    sample = X_live_prep[0]
+                    dist = mahalanobis(sample, train_mean, train_cov_inv)
+                    max_dist = 10.0
+                    confidence = max(0, min(100, 100 * (1 - dist / max_dist)))
+                except Exception:
+                    confidence = 50.0
+            
             is_alert = pred_pol < threshold
             
-            # Update session stats
             session_stats["total_predictions"] += 1
             session_stats["sum_inference_ms"] += inference_ms
             session_stats["sum_pol"] += pred_pol
@@ -255,6 +342,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "alert": is_alert,
                 "anomaly": bool(is_anomaly),
                 "sample_idx": idx,
+                "confidence": round(confidence, 1),
             }
             
             await websocket.send_text(json.dumps(payload))
@@ -271,13 +359,32 @@ class ReportData(BaseModel):
     actual_pol: list[float]
     threshold: Optional[float] = 13.0
 
+def generate_prediction_chart(predicted, actual, threshold):
+    fig, ax = plt.subplots(figsize=(7, 2.8), dpi=120)
+    ax.plot(predicted, color='#16a34a', linewidth=1.5, label='Predicted Pol')
+    if actual:
+        ax.plot(actual, color='#94a3b8', linewidth=1, linestyle='--', label='Actual Pol', alpha=0.7)
+    if threshold:
+        ax.axhline(y=threshold, color='#ef4444', linewidth=1, linestyle=':', label=f'Threshold ({threshold}%)')
+    ax.set_xlabel('Sample #', fontsize=9)
+    ax.set_ylabel('Pol %', fontsize=9)
+    ax.set_title('Prediction History', fontsize=11, fontweight='bold')
+    ax.legend(fontsize=8, loc='lower right')
+    ax.grid(True, alpha=0.3)
+    ax.tick_params(labelsize=8)
+    fig.tight_layout()
+    img_buf = io.BytesIO()
+    fig.savefig(img_buf, format='png', bbox_inches='tight')
+    plt.close(fig)
+    img_buf.seek(0)
+    return img_buf
+
 @app.post("/api/report")
 async def generate_report(data: ReportData):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     w, h = letter
-    
-    # Header
+
     c.setFont("Helvetica-Bold", 28)
     c.setFillColorRGB(0.04, 0.72, 0.31)
     c.drawString(50, h - 60, "SugarSense Shift Report")
@@ -285,70 +392,97 @@ async def generate_report(data: ReportData):
     c.setFont("Helvetica", 10)
     c.setFillColorRGB(0.5, 0.5, 0.5)
     c.drawString(50, h - 80, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+    c.drawString(50, h - 94, "Precision AI for Cane Quality Assessment")
+
+    c.setStrokeColorRGB(0.04, 0.72, 0.31)
+    c.setLineWidth(2)
+    c.line(50, h - 105, w - 50, h - 105)
+
     c.setFillColorRGB(0, 0, 0)
-    y_pos = h - 120
-    
-    # Summary
+    y_pos = h - 130
+
     c.setFont("Helvetica-Bold", 16)
     c.drawString(50, y_pos, "Session Summary")
-    y_pos -= 30
-    
-    c.setFont("Helvetica", 12)
-    c.drawString(50, y_pos, f"Total Samples Processed: {len(data.predicted_pol)}")
-    y_pos -= 22
-    
+    y_pos -= 28
+
     avg_pol = sum(data.predicted_pol) / len(data.predicted_pol) if data.predicted_pol else 0
-    c.drawString(50, y_pos, f"Average Predicted Pol (TS%): {avg_pol:.2f}%")
-    y_pos -= 22
-    
     threshold = data.threshold or 13.0
     breaches = sum(1 for p in data.predicted_pol if p < threshold)
-    c.drawString(50, y_pos, f"Quality Alert Threshold: {threshold:.1f}%")
-    y_pos -= 22
-    c.drawString(50, y_pos, f"Total Low-Pol Alerts: {breaches}")
-    y_pos -= 22
-    
     alert_rate = (breaches / len(data.predicted_pol) * 100) if data.predicted_pol else 0
-    c.drawString(50, y_pos, f"Alert Rate: {alert_rate:.1f}%")
-    y_pos -= 22
-    
-    # Prediction accuracy
+    min_pol = min(data.predicted_pol) if data.predicted_pol else 0
+    max_pol = max(data.predicted_pol) if data.predicted_pol else 0
+
+    rows = [
+        ("Total Samples Processed", str(len(data.predicted_pol))),
+        ("Average Predicted Pol", f"{avg_pol:.2f}%"),
+        ("Pol Range", f"{min_pol:.2f}% — {max_pol:.2f}%"),
+        ("Quality Threshold", f"{threshold:.1f}%"),
+        ("Low-Pol Alerts", str(breaches)),
+        ("Alert Rate", f"{alert_rate:.1f}%"),
+    ]
+
     if data.actual_pol:
         pred_arr = np.array(data.predicted_pol)
         act_arr = np.array(data.actual_pol)
         rmse = float(np.sqrt(np.mean((pred_arr - act_arr) ** 2)))
-        c.drawString(50, y_pos, f"Session RMSEP: {rmse:.4f}")
-        y_pos -= 22
-    
-    min_pol = min(data.predicted_pol) if data.predicted_pol else 0
-    max_pol = max(data.predicted_pol) if data.predicted_pol else 0
-    c.drawString(50, y_pos, f"Pol Range: {min_pol:.2f}% — {max_pol:.2f}%")
-    y_pos -= 40
-    
-    # Model info
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y_pos, "Model & Technical Details")
-    y_pos -= 25
-    
+        rows.append(("Session RMSEP", f"{rmse:.4f}"))
+
     c.setFont("Helvetica", 11)
+    for label, value in rows:
+        c.setFillColorRGB(0.4, 0.4, 0.4)
+        c.drawString(60, y_pos, label)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(300, y_pos, value)
+        c.setFont("Helvetica", 11)
+        y_pos -= 20
+
+    y_pos -= 15
+
+    try:
+        chart_img = generate_prediction_chart(data.predicted_pol, data.actual_pol, threshold)
+        img = ImageReader(chart_img)
+        chart_h = 200
+        c.drawImage(img, 50, y_pos - chart_h, width=w - 100, height=chart_h)
+        y_pos -= chart_h + 20
+    except Exception:
+        pass
+
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColorRGB(0, 0, 0)
+    c.drawString(50, y_pos, "Model & Technical Details")
+    y_pos -= 22
+
+    c.setFont("Helvetica", 10)
     details = [
         "Model: Partial Least Squares (PLS) Regression",
-        "Preprocessing: Savitzky-Golay (drv=1, w=15, p=2) + Standard Normal Variate (SNV)",
+        "Preprocessing: Savitzky-Golay (drv=1, w=15, p=2) + SNV",
         "Anomaly Detection: Isolation Forest (contamination=2%)",
         "Spectrometer: Scio (740–1070 nm, 331 wavelengths)",
-        "Deployment: Edge Device / Web SCADA Interface",
     ]
     if model_info_cache:
-        details.insert(1, f"PLS Components: {model_info_cache['n_components']} | Baseline R²: {model_info_cache['r2']:.4f} | RMSEP: {model_info_cache['rmse']:.4f}")
-    
+        details.insert(1, f"PLS Components: {model_info_cache['n_components']} | R²: {model_info_cache['r2']:.4f} | RMSEP: {model_info_cache['rmse']:.4f}")
+
     for line in details:
+        c.setFillColorRGB(0.3, 0.3, 0.3)
         c.drawString(60, y_pos, f"• {line}")
-        y_pos -= 18
-    
+        y_pos -= 16
+
+    y_pos -= 15
+    money_saved = len(data.predicted_pol) * 15.0
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColorRGB(0.04, 0.72, 0.31)
+    c.drawString(50, y_pos, "ROI Impact")
+    y_pos -= 20
+    c.setFont("Helvetica", 11)
+    c.setFillColorRGB(0, 0, 0)
+    c.drawString(60, y_pos, f"Estimated Lab Cost Savings: ${money_saved:.0f}")
+    y_pos -= 18
+    c.drawString(60, y_pos, f"Lab Tests Replaced: {len(data.predicted_pol)} (@ $15/test)")
+
     c.save()
     buffer.seek(0)
-    
+
     return StreamingResponse(
         buffer,
         media_type="application/pdf",

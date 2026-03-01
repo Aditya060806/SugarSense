@@ -88,6 +88,7 @@ export default function useSimulation() {
       inference_ms: data.inference_ms,
       alert: data.alert,
       anomaly: data.anomaly,
+      confidence: data.confidence || 0,
     }]);
 
     // Alert timeline

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import ModelMetrics from '../components/analytics/ModelMetrics';
+import ModelComparison from '../components/analytics/ModelComparison';
 import PreprocessingViz from '../components/analytics/PreprocessingViz';
 import WavelengthImportance from '../components/analytics/WavelengthImportance';
+import QualityHeatmap from '../components/analytics/QualityHeatmap';
 import { ResidualChart, ErrorDistribution } from '../components/charts/ResidualChart';
 import { API } from '../utils/helpers';
 
@@ -30,7 +32,11 @@ export default function AnalyticsPage() {
 
       <ModelMetrics />
 
+      <ModelComparison />
+
       <PreprocessingViz />
+
+      <QualityHeatmap />
 
       <WavelengthImportance />
 

@@ -119,8 +119,10 @@ def main():
     # We will save the PLS model for our real-time dashboard simulation
     print("Saving PLS model to pls_model.pkl...")
     joblib.dump(pls, 'pls_model.pkl')
-    
-    # Save test set for simulation later
+
+    print("Saving ANN model to ann_model.pkl...")
+    joblib.dump(ann, 'ann_model.pkl')
+
     np.save('X_test_raw.npy', X[len(X_train):])
     np.save('y_test.npy', y_test)
     
