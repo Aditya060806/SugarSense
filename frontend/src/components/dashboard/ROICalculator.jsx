@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, Clock, TrendingUp, Zap } from 'lucide-react';
+import { IndianRupee, Clock, TrendingUp, Zap } from 'lucide-react';
 import GlassCard from '../common/GlassCard';
 import { API } from '../../utils/helpers';
 import { useSimulationContext } from '../../context/SimulationContext';
@@ -25,9 +25,13 @@ function AnimatedCounter({ value, prefix = '', suffix = '', color }) {
         return () => clearInterval(timer);
     }, [value]);
 
-    const formatted = display >= 1000
-        ? `${(display / 1000).toFixed(1)}k`
-        : Number.isInteger(display) ? display.toString() : display.toFixed(1);
+    const formatted = display >= 10000000
+        ? `${(display / 10000000).toFixed(1)} Cr`
+        : display >= 100000
+            ? `${(display / 100000).toFixed(1)} L`
+            : display >= 1000
+                ? `${(display / 1000).toFixed(1)}k`
+                : Number.isInteger(display) ? display.toString() : display.toFixed(1);
 
     return (
         <span style={{ color, fontSize: '1.8rem', fontWeight: 800, lineHeight: 1.2 }}>
@@ -51,14 +55,14 @@ export default function ROICalculator() {
 
     const cards = [
         {
-            icon: DollarSign,
+            icon: IndianRupee,
             label: 'Lab Cost Savings',
-            value: roi?.money_saved_usd || 0,
-            prefix: '$',
+            value: roi?.money_saved_inr || 0,
+            prefix: '₹',
             suffix: '',
             color: '#16a34a',
             bg: 'rgba(22, 163, 74, 0.08)',
-            desc: `${roi?.samples_analyzed || 0} lab tests replaced @ $${roi?.cost_per_lab_test || 15}/test`,
+            desc: `${roi?.samples_analyzed || 0} lab tests replaced @ ₹${(roi?.cost_per_lab_test || 1250).toLocaleString('en-IN')}/test`,
         },
         {
             icon: Clock,
@@ -73,8 +77,8 @@ export default function ROICalculator() {
         {
             icon: TrendingUp,
             label: 'Yield Improvement',
-            value: roi?.yield_improvement_usd || 0,
-            prefix: '$',
+            value: roi?.yield_improvement_inr || 0,
+            prefix: '₹',
             suffix: '',
             color: '#8b5cf6',
             bg: 'rgba(139, 92, 246, 0.08)',
@@ -83,8 +87,8 @@ export default function ROICalculator() {
         {
             icon: Zap,
             label: 'Annual Projection',
-            value: roi?.annual_projection_usd || 0,
-            prefix: '$',
+            value: roi?.annual_projection_inr || 0,
+            prefix: '₹',
             suffix: '',
             color: '#f59e0b',
             bg: 'rgba(245, 158, 11, 0.08)',
@@ -94,7 +98,7 @@ export default function ROICalculator() {
 
     return (
         <GlassCard delay={0.1}>
-            <h3 className="card-title"><DollarSign size={20} /> ROI & Cost Savings — NIR vs Lab Testing</h3>
+            <h3 className="card-title"><IndianRupee size={20} /> ROI & Cost Savings — NIR vs Lab Testing</h3>
             <div className="kpi-row">
                 {cards.map((card, idx) => (
                     <motion.div

@@ -268,10 +268,10 @@ def get_model_comparison():
 @app.get("/api/roi")
 def get_roi():
     n = session_stats["total_predictions"]
-    cost_per_lab_test = 15.0
+    cost_per_lab_test = 1250.0
     lab_time_minutes = 180
     pol_improvement_pct = 0.2
-    hourly_mill_revenue = 5000.0
+    hourly_mill_revenue = 400000.0
 
     money_saved = n * cost_per_lab_test
     time_saved_hrs = round((n * lab_time_minutes) / 60, 1)
@@ -281,10 +281,10 @@ def get_roi():
 
     return {
         "samples_analyzed": n,
-        "money_saved_usd": round(money_saved, 2),
+        "money_saved_inr": round(money_saved, 2),
         "time_saved_hours": time_saved_hrs,
-        "yield_improvement_usd": round(yield_gain, 2),
-        "annual_projection_usd": round(min(annual_projection, 999999), 0),
+        "yield_improvement_inr": round(yield_gain, 2),
+        "annual_projection_inr": round(min(annual_projection, 99999999), 0),
         "avg_inference_ms": round(avg_inference, 2),
         "cost_per_lab_test": cost_per_lab_test,
     }
@@ -469,16 +469,16 @@ async def generate_report(data: ReportData):
         y_pos -= 16
 
     y_pos -= 15
-    money_saved = len(data.predicted_pol) * 15.0
+    money_saved = len(data.predicted_pol) * 1250.0
     c.setFont("Helvetica-Bold", 14)
     c.setFillColorRGB(0.04, 0.72, 0.31)
     c.drawString(50, y_pos, "ROI Impact")
     y_pos -= 20
     c.setFont("Helvetica", 11)
     c.setFillColorRGB(0, 0, 0)
-    c.drawString(60, y_pos, f"Estimated Lab Cost Savings: ${money_saved:.0f}")
+    c.drawString(60, y_pos, f"Estimated Lab Cost Savings: Rs. {money_saved:,.0f}")
     y_pos -= 18
-    c.drawString(60, y_pos, f"Lab Tests Replaced: {len(data.predicted_pol)} (@ $15/test)")
+    c.drawString(60, y_pos, f"Lab Tests Replaced: {len(data.predicted_pol)} (@ Rs. 1,250/test)")
 
     c.save()
     buffer.seek(0)
