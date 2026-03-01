@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, Square, Download, RotateCcw, Settings } from 'lucide-react';
 import { useSimulationContext } from '../../context/SimulationContext';
+import { API_BASE } from '../../utils/helpers';
 import GlassCard from '../common/GlassCard';
 import toast from 'react-hot-toast';
 
@@ -26,7 +27,7 @@ export default function ControlPanel() {
       threshold,
     };
     try {
-      const response = await fetch('http://localhost:8000/api/report', {
+      const response = await fetch(`${API_BASE}/api/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

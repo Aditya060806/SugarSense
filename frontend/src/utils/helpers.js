@@ -87,7 +87,7 @@ export function downloadJSON(predictions, filename = 'sugarsense_data.json') {
 
 // ── API helpers ─────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export async function fetchJSON(path) {
   const res = await fetch(`${API_BASE}${path}`);
@@ -104,4 +104,9 @@ export const API = {
   predictionsHistory: () => fetchJSON('/api/predictions-history'),
 };
 
-export const WS_URL = 'ws://localhost:8000/ws/simulation';
+const wsProtocol = API_BASE.startsWith('https') ? 'wss' : 'ws';
+const wsHost = API_BASE.replace(/^https?:\/\//, '');
+export const WS_URL = `${wsProtocol}://${wsHost}/ws/simulation`;
+
+export { API_BASE };
+

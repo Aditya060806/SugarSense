@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Play, BarChart3, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSimulationContext } from '../../context/SimulationContext';
+import { API_BASE } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 export default function QuickActions() {
@@ -21,7 +22,7 @@ export default function QuickActions() {
             threshold,
         };
         try {
-            const response = await fetch('http://localhost:8000/api/report', {
+            const response = await fetch(`${API_BASE}/api/report`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),

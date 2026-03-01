@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { FileText, Download, FileJson, FileSpreadsheet } from 'lucide-react';
 import { useSimulationContext } from '../context/SimulationContext';
 import GlassCard from '../components/common/GlassCard';
-import { downloadCSV, downloadJSON } from '../utils/helpers';
+import { downloadCSV, downloadJSON, API_BASE } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const pageVariants = {
@@ -27,7 +27,7 @@ export default function ReportsPage() {
       threshold,
     };
     try {
-      const response = await fetch('http://localhost:8000/api/report', {
+      const response = await fetch(`${API_BASE}/api/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
