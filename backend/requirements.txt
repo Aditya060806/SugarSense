@@ -8,3 +8,5 @@ reportlab
 pydantic
 pandas
 matplotlib
+paho-mqtt
+sqlalchemy
