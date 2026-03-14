@@ -29,7 +29,7 @@ export default function Sidebar() {
       {/* Brand */}
       <div className="sidebar-brand">
         <div className="sidebar-logo">
-          <span className="logo-icon">🌾</span>
+          <img src="/SugarSense_slant.svg" alt="SugarSense Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           {!collapsed && <span className="logo-text">SugarSense</span>}
         </div>
         <button className="sidebar-toggle" onClick={() => setCollapsed(c => !c)}>

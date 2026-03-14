@@ -51,35 +51,35 @@ const PARAM_CONFIG = [
 
 function GaugeMini({ value, min, max, color }) {
   const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
-  const r = 28;
+  const r = 32;
   const circ = 2 * Math.PI * r;
-  const dash = circ * 0.7; // 70% arc
+  const dash = circ * 0.75; // 75% arc
   const offset = dash * (1 - pct);
   const startAngle = 135; // degrees
 
   return (
-    <svg width="70" height="50" viewBox="0 0 70 50" style={{ overflow: 'visible' }}>
+    <svg width="80" height="80" viewBox="0 0 80 80" style={{ display: 'block' }}>
       {/* bg arc */}
       <circle
-        cx="35" cy="42" r={r}
+        cx="40" cy="40" r={r}
         fill="none"
-        stroke="rgba(255,255,255,0.06)"
+        stroke={`${color}33`}
         strokeWidth="6"
-        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDasharray={`${dash} ${circ}`}
         strokeDashoffset="0"
         strokeLinecap="round"
-        transform={`rotate(${startAngle} 35 42)`}
+        transform={`rotate(${startAngle} 40 40)`}
       />
       {/* value arc */}
       <circle
-        cx="35" cy="42" r={r}
+        cx="40" cy="40" r={r}
         fill="none"
         stroke={color}
         strokeWidth="6"
-        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDasharray={`${dash} ${circ}`}
         strokeDashoffset={offset}
         strokeLinecap="round"
-        transform={`rotate(${startAngle} 35 42)`}
+        transform={`rotate(${startAngle} 40 40)`}
         style={{ transition: 'stroke-dashoffset 0.5s ease' }}
       />
     </svg>
@@ -126,36 +126,35 @@ export default function MultiParamCard() {
           >
             {/* status dot */}
             <span style={{
-              position: 'absolute', top: 10, right: 10,
+              position: 'absolute', top: 12, right: 12,
               width: 8, height: 8, borderRadius: '50%',
               background: value == null ? '#64748b' : isGood ? '#22c55e' : '#ef4444',
               boxShadow: `0 0 6px ${value == null ? '#64748b' : isGood ? '#22c55e' : '#ef4444'}`,
             }} />
 
             {/* mini gauge */}
-            <div style={{ position: 'relative', height: 50 }}>
+            <div style={{ position: 'relative', width: 80, height: 80, marginBottom: 8, marginTop: 4 }}>
               <GaugeMini
                 value={value ?? param.min}
                 min={param.min}
                 max={param.max}
                 color={param.color}
               />
-              <span style={{
-                position: 'absolute', bottom: 0, left: '50%',
-                transform: 'translateX(-50%)',
-                fontSize: '0.75rem', fontWeight: 700,
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.9rem', fontWeight: 800,
                 color: value != null ? param.color : '#475569',
-                whiteSpace: 'nowrap',
               }}>
                 {value != null ? `${value.toFixed(1)}${param.unit}` : '—'}
-              </span>
+              </div>
             </div>
 
             <div style={{ textAlign: 'center', lineHeight: 1.3 }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 {param.label}
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: 2 }}>
                 {param.desc}
               </div>
             </div>
