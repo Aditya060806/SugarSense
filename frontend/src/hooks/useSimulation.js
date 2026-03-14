@@ -20,6 +20,7 @@ export default function useSimulation() {
   const [wsStatus, setWsStatus] = useState('disconnected'); // connected | connecting | disconnected
   const ws = useRef(null);
   const reconnectTimer = useRef(null);
+  const tickTimer = useRef(null);  // tracks the 800ms tick timeout so we can clear it cleanly
   const reconnectAttempt = useRef(0);
 
   // ── Data ───────────────────────────────────────────────
@@ -158,10 +159,20 @@ export default function useSimulation() {
     };
 
     socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
-      handlePayload(payload);
-      // Schedule next tick
-      setTimeout(sendConfig, 800);
+      try {
+        const payload = JSON.parse(event.data);
+        // Skip error packets from the backend without crashing the hook
+        if (payload.error) {
+          console.warn('[SugarSense WS] Backend error packet:', payload.error, payload.detail || '');
+          return;
+        }
+        handlePayload(payload);
+      } catch (e) {
+        console.error('[SugarSense WS] Failed to parse message:', e);
+      }
+      // Schedule next tick — stored in ref so we can cancel on unmount
+      clearTimeout(tickTimer.current);
+      tickTimer.current = setTimeout(sendConfig, 800);
     };
 
     socket.onclose = () => {
@@ -189,6 +200,7 @@ export default function useSimulation() {
       connect();
     } else {
       clearTimeout(reconnectTimer.current);
+      clearTimeout(tickTimer.current);  // cancel any pending tick
       if (ws.current) {
         ws.current.onclose = null; // prevent auto-reconnect on intentional close
         ws.current.close();
@@ -198,6 +210,7 @@ export default function useSimulation() {
     }
     return () => {
       clearTimeout(reconnectTimer.current);
+      clearTimeout(tickTimer.current);  // cancel on unmount
       if (ws.current) {
         ws.current.onclose = null;
         ws.current.close();

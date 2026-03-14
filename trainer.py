@@ -8,7 +8,26 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
+import json
 import matplotlib.pyplot as plt
+
+# ── Load shared configuration ────────────────────────────────
+_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+try:
+    with open(_cfg_path) as _f:
+        _CONF = json.load(_f)
+except FileNotFoundError:
+    _CONF = {}
+
+_pre = _CONF.get('preprocessing', {})
+_mod = _CONF.get('model', {})
+
+SAVGOL_WINDOW   = _pre.get('savgol_window_length', 15)
+SAVGOL_POLY     = _pre.get('savgol_polyorder', 2)
+SAVGOL_DERIV    = _pre.get('savgol_deriv', 1)
+PLS_MAX_COMP    = _mod.get('pls_max_components', 15)
+TEST_SPLIT      = _mod.get('train_test_split_ratio', 0.2)
+RANDOM_STATE    = _mod.get('random_state', 42)
 
 def load_data(file_path):
     print(f"Loading data from {file_path}...")
@@ -37,33 +56,31 @@ def preprocess_spectra(X):
     2. Standard Normal Variate (SNV) to scatter-correct
     """
     # 1. Savitzky-Golay Smoothing and 1st Derivative
-    # window_length=15, polyorder=2, deriv=1
-    X_sg = scipy.signal.savgol_filter(X, window_length=15, polyorder=2, deriv=1)
-    
+    X_sg = scipy.signal.savgol_filter(X, window_length=SAVGOL_WINDOW, polyorder=SAVGOL_POLY, deriv=SAVGOL_DERIV)
+
     # 2. Standard Normal Variate (SNV)
     # For each spectrum, subtract mean and divide by standard deviation
     mean = np.mean(X_sg, axis=1, keepdims=True)
     std = np.std(X_sg, axis=1, keepdims=True)
     X_snv = (X_sg - mean) / (std + 1e-8)
-    
+
     return X_snv
 
 def train_pls(X_train, y_train):
     print("Finding optimal number of PLS components via Cross-Validation...")
-    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
     best_n = 1
     lowest_mse = float('inf')
-    
-    # Test up to 15 components
-    for i in range(1, 15):
+
+    for i in range(1, PLS_MAX_COMP + 1):
         pls = PLSRegression(n_components=i)
         score = -cross_val_score(pls, X_train, y_train, cv=cv, scoring='neg_mean_squared_error').mean()
         if score < lowest_mse:
             lowest_mse = score
             best_n = i
-            
+
     print(f"Best number of PLS components: {best_n} (CV MSE: {lowest_mse:.4f})")
-    
+
     pls = PLSRegression(n_components=best_n)
     pls.fit(X_train, y_train)
     return pls
@@ -101,7 +118,7 @@ def main():
     X_prep = preprocess_spectra(X)
     
     # Train/Test Split
-    X_train, X_test, y_train, y_test = train_test_split(X_prep, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_prep, y, test_size=TEST_SPLIT, random_state=RANDOM_STATE)
     
     # Standardize Targets (optional but good for comparison)
     scaler_y = StandardScaler()

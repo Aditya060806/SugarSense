@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
 
 # Add parent dir to path so we can import trainer.py which contains `preprocess_spectra`
@@ -45,6 +45,31 @@ app.add_middleware(
 # ── Global state ──────────────────────────────────────────────
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
+
+# ── Load shared configuration ────────────────────────────────────────
+config_path = os.path.join(root_dir, 'config.json')
+try:
+    with open(config_path, 'r') as _f:
+        APP_CONFIG = json.load(_f)
+    print(f"Loaded config from {config_path}")
+except FileNotFoundError:
+    print("[WARN] config.json not found, using built-in defaults")
+    APP_CONFIG = {}
+
+# Convenience accessors with safe defaults
+_anom = APP_CONFIG.get('anomaly_detection', {})
+_roi  = APP_CONFIG.get('roi', {})
+_sim  = APP_CONFIG.get('simulation', {})
+
+ISO_CONTAMINATION      = _anom.get('isolation_forest_contamination', 0.02)
+MAHALANOBIS_RIDGE      = _anom.get('mahalanobis_ridge_factor', 1e-6)
+MAHALANOBIS_MAX_DIST   = _anom.get('mahalanobis_max_dist', 10.0)
+DEFAULT_NOISE_LEVEL    = _sim.get('default_noise_level_pct', 2.0)
+DEFAULT_THRESHOLD      = _sim.get('default_pol_threshold_pct', 13.0)
+COST_PER_LAB_TEST      = _roi.get('cost_per_lab_test_inr', 1250.0)
+LAB_TIME_MINUTES       = _roi.get('lab_time_per_test_minutes', 180)
+POL_IMPROVEMENT_PCT    = _roi.get('pol_improvement_pct', 0.2)
+HOURLY_MILL_REVENUE    = _roi.get('hourly_mill_revenue_inr', 400000.0)
 
 pls_model = None
 ann_model = None
@@ -81,7 +106,7 @@ try:
     
     print("Preprocessing test set & training Anomaly Detector...")
     X_test_prep = preprocess_spectra(X_test)
-    iso_forest = IsolationForest(contamination=0.02, random_state=42)
+    iso_forest = IsolationForest(contamination=ISO_CONTAMINATION, random_state=42)
     iso_forest.fit(X_test_prep)
     
     # Pre-compute model performance metrics for /api/model-info
@@ -111,9 +136,15 @@ try:
     train_mean = np.mean(X_test_prep, axis=0)
     cov = np.cov(X_test_prep.T)
     try:
-        train_cov_inv = np.linalg.pinv(cov)
-    except Exception:
-        train_cov_inv = np.eye(cov.shape[0])
+        # Tikhonov regularization: add a small ridge to the diagonal to ensure
+        # invertibility even when features are highly collinear (common in NIR).
+        # This preserves the correlated-feature geometry unlike a plain identity fallback.
+        ridge = MAHALANOBIS_RIDGE * np.trace(cov) / cov.shape[0]
+        cov_reg = cov + ridge * np.eye(cov.shape[0])
+        train_cov_inv = np.linalg.inv(cov_reg)
+    except Exception as e:
+        print(f"[WARN] Mahalanobis covariance inversion failed ({e}). Confidence scores will be approximate.")
+        train_cov_inv = np.linalg.pinv(cov)  # last-resort pseudo-inverse
     print("Mahalanobis confidence scoring initialized.")
 
     try:
@@ -268,15 +299,11 @@ def get_model_comparison():
 @app.get("/api/roi")
 def get_roi():
     n = session_stats["total_predictions"]
-    cost_per_lab_test = 1250.0
-    lab_time_minutes = 180
-    pol_improvement_pct = 0.2
-    hourly_mill_revenue = 400000.0
 
-    money_saved = n * cost_per_lab_test
-    time_saved_hrs = round((n * lab_time_minutes) / 60, 1)
+    money_saved = n * COST_PER_LAB_TEST
+    time_saved_hrs = round((n * LAB_TIME_MINUTES) / 60, 1)
     avg_inference = session_stats["sum_inference_ms"] / n if n > 0 else 0
-    yield_gain = n * pol_improvement_pct * 0.01 * hourly_mill_revenue / 60
+    yield_gain = n * POL_IMPROVEMENT_PCT * 0.01 * HOURLY_MILL_REVENUE / 60
     annual_projection = money_saved * (525600 / max(time.time() - server_start_time, 1)) if n > 0 else 0
 
     return {
@@ -286,7 +313,7 @@ def get_roi():
         "yield_improvement_inr": round(yield_gain, 2),
         "annual_projection_inr": round(min(annual_projection, 99999999), 0),
         "avg_inference_ms": round(avg_inference, 2),
-        "cost_per_lab_test": cost_per_lab_test,
+        "cost_per_lab_test": COST_PER_LAB_TEST,
     }
 
 # ── WebSocket Simulation ─────────────────────────────────────
@@ -297,11 +324,23 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            config = json.loads(data)
-            
+
+            # ── Guard: malformed JSON from client must not crash the handler ──
+            try:
+                config = json.loads(data)
+            except json.JSONDecodeError as e:
+                print(f"[WARN] WS received malformed JSON, skipping tick: {e}")
+                await websocket.send_text(json.dumps({"error": "invalid_json", "detail": str(e)}))
+                continue
+
             noise_pct = config.get("noiseLevel", 2.0)
             threshold = config.get("threshold", 13.0)
-            
+
+            # ── Guard: models must be loaded before processing ──
+            if pls_model is None or X_test is None or y_test is None:
+                await websocket.send_text(json.dumps({"error": "models_not_loaded"}))
+                continue
+
             raw_spectrum = X_test[idx]
             actual_pol = y_test[idx]
             
@@ -318,8 +357,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 try:
                     sample = X_live_prep[0]
                     dist = mahalanobis(sample, train_mean, train_cov_inv)
-                    max_dist = 10.0
-                    confidence = max(0, min(100, 100 * (1 - dist / max_dist)))
+                    confidence = max(0, min(100, 100 * (1 - dist / MAHALANOBIS_MAX_DIST)))
                 except Exception:
                     confidence = 50.0
             
@@ -358,6 +396,22 @@ class ReportData(BaseModel):
     predicted_pol: list[float]
     actual_pol: list[float]
     threshold: Optional[float] = 13.0
+
+    @model_validator(mode='after')
+    def validate_list_lengths(self) -> 'ReportData':
+        if len(self.predicted_pol) == 0:
+            raise ValueError('predicted_pol must not be empty')
+        if len(self.actual_pol) > 0 and len(self.actual_pol) != len(self.predicted_pol):
+            raise ValueError(
+                f'actual_pol length ({len(self.actual_pol)}) must match '
+                f'predicted_pol length ({len(self.predicted_pol)})'
+            )
+        if len(self.timestamp) > 0 and len(self.timestamp) != len(self.predicted_pol):
+            raise ValueError(
+                f'timestamp length ({len(self.timestamp)}) must match '
+                f'predicted_pol length ({len(self.predicted_pol)})'
+            )
+        return self
 
 def generate_prediction_chart(predicted, actual, threshold):
     fig, ax = plt.subplots(figsize=(7, 2.8), dpi=120)
