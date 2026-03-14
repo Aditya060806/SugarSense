@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+
+  # ── MQTT Broker ─────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: sugarsense-mqtt
+    ports:
+      - "1883:1883"   # MQTT TCP
+      - "9001:9001"   # MQTT over WebSocket
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: unless-stopped
+
+  # ── Backend API ─────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: sugarsense-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./sugarsense.db:/app/sugarsense.db   # persist SQLite data
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: sugarsense-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -10,6 +10,7 @@ import SystemHealth from '../components/dashboard/SystemHealth';
 import ROICalculator from '../components/dashboard/ROICalculator';
 import SpectrumChart from '../components/charts/SpectrumChart';
 import PolHistoryChart from '../components/charts/PolHistoryChart';
+import MultiParamCard from '../components/dashboard/MultiParamCard';
 
 const pageVariants = {
   initial: { opacity: 0, y: 12 },
@@ -33,6 +34,8 @@ export default function DashboardPage() {
       </div>
 
       <SystemHealth />
+
+      <MultiParamCard />
 
       <ROICalculator />
 

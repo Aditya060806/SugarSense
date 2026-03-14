@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 import joblib
@@ -30,6 +30,10 @@ try:
 except ImportError:
     sys.path.append(os.getcwd())
     from trainer import preprocess_spectra
+
+# Feature modules
+from mqtt_publisher import MQTTPublisher
+import database as db
 
 app = FastAPI(title="SugarSense — NIR Real-Time Prediction API", version="2.0.0")
 
@@ -72,6 +76,8 @@ POL_IMPROVEMENT_PCT    = _roi.get('pol_improvement_pct', 0.2)
 HOURLY_MILL_REVENUE    = _roi.get('hourly_mill_revenue_inr', 400000.0)
 
 pls_model = None
+multi_model = None
+multi_target_names = ['Pol', 'Brix', 'Fibre', 'Purity']
 ann_model = None
 wavelengths = None
 wavelengths_plot = None
@@ -167,11 +173,34 @@ try:
         print(f"ANN model not found: {e}")
         ann_info_cache = None
 
+    # Load multi-output model
+    try:
+        multi_model = joblib.load(os.path.join(root_dir, 'multi_model.pkl'))
+        _names = joblib.load(os.path.join(root_dir, 'multi_target_names.pkl'))
+        multi_target_names = _names
+        print(f"Multi-output model loaded. Targets: {multi_target_names}")
+    except Exception as e:
+        print(f"[INFO] Multi-output model not found ({e}). Run trainer.py to generate it.")
+        multi_model = None
+
     print("All systems ready.")
 except Exception as e:
     print(f"Error loading models: {e}")
     print("Please make sure you have run `python trainer.py` first.")
 
+
+# ── Initialize feature modules ────────────────────────────────────────────────
+_mqtt_cfg    = APP_CONFIG.get('mqtt', {})
+mqtt_publisher = MQTTPublisher(
+    broker_host  = _mqtt_cfg.get('broker_host', 'localhost'),
+    broker_port  = _mqtt_cfg.get('broker_port', 1883),
+    topic_prefix = _mqtt_cfg.get('topic_prefix', 'sugarsense'),
+    client_id    = _mqtt_cfg.get('client_id', 'sugarsense-backend'),
+)
+if _mqtt_cfg.get('enabled', True):
+    mqtt_publisher.connect()
+
+db.create_tables()
 # ── Helpers ───────────────────────────────────────────────────
 def add_industrial_noise(spectrum, noise_level=0.02):
     noise = np.random.normal(0, noise_level, spectrum.shape)
@@ -317,6 +346,8 @@ def get_roi():
     }
 
 # ── WebSocket Simulation ─────────────────────────────────────
+active_shift_id = None  # set by POST /api/shifts/active
+
 @app.websocket("/ws/simulation")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -371,10 +402,24 @@ async def websocket_endpoint(websocket: WebSocket):
             if is_anomaly:
                 session_stats["total_anomalies"] += 1
             
+            # ── Multi-parameter predictions (Brix, Fibre, Purity) ──
+            brix = purity = fibre = None
+            if multi_model is not None:
+                try:
+                    multi_pred = multi_model.predict(X_live_prep)[0]  # [Pol, Brix, Fibre, Purity]
+                    brix   = round(float(multi_pred[1]), 2)
+                    fibre  = round(float(multi_pred[2]), 2)
+                    purity = round(float(multi_pred[3]), 2)
+                except Exception as e:
+                    print(f"[WARN] Multi-model prediction failed: {e}")
+
             payload = {
                 "timestamp": time.time(),
                 "actual_pol": float(actual_pol),
                 "predicted_pol": pred_pol,
+                "brix":   brix,
+                "fibre":  fibre,
+                "purity": purity,
                 "inference_ms": inference_ms,
                 "noisy_spectrum": noisy_spectrum.tolist(),
                 "alert": is_alert,
@@ -382,10 +427,21 @@ async def websocket_endpoint(websocket: WebSocket):
                 "sample_idx": idx,
                 "confidence": round(confidence, 1),
             }
-            
+
+            # ── Persist to SQLite ──
+            try:
+                db.save_prediction(active_shift_id, payload)
+            except Exception as e:
+                print(f"[WARN] DB save failed: {e}")
+
+            # ── Publish to MQTT ──
+            mqtt_publisher.publish_prediction(payload)
+            if is_alert:
+                mqtt_publisher.publish_alert({"alert": True, "pol": pred_pol, "threshold": threshold, "ts": payload["timestamp"]})
+
             await websocket.send_text(json.dumps(payload))
             idx = (idx + 1) % len(X_test)
-            
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print("Client disconnected.")
@@ -542,3 +598,54 @@ async def generate_report(data: ReportData):
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=sugarsense_shift_report.pdf"}
     )
+
+# ── MQTT Status ────────────────────────────────────────────────
+@app.get("/api/mqtt-status")
+def get_mqtt_status():
+    return mqtt_publisher.status()
+
+# ── Shift Comparison Endpoints ─────────────────────────────────
+class ShiftCreate(BaseModel):
+    name: str
+    threshold: Optional[float] = 13.0
+
+@app.post("/api/shifts", status_code=201)
+def create_shift(body: ShiftCreate):
+    global active_shift_id
+    shift_id = db.create_shift(name=body.name, threshold=body.threshold or 13.0)
+    active_shift_id = shift_id
+    return {"id": shift_id, "name": body.name, "active": True}
+
+@app.post("/api/shifts/active")
+def set_active_shift(body: ShiftCreate):
+    """Create a new shift and mark it as the active recording target."""
+    global active_shift_id
+    shift_id = db.create_shift(name=body.name, threshold=body.threshold or 13.0)
+    active_shift_id = shift_id
+    return {"id": shift_id, "active": True}
+
+@app.delete("/api/shifts/active")
+def stop_recording():
+    """Stop recording to the active shift (does not delete it)."""
+    global active_shift_id
+    active_shift_id = None
+    return {"active": False}
+
+@app.get("/api/shifts")
+def list_shifts():
+    return db.list_shifts()
+
+@app.get("/api/shifts/{shift_id}")
+def get_shift(shift_id: int):
+    shift = db.get_shift(shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    predictions = db.get_shift_predictions(shift_id)
+    return {**shift, "predictions": predictions}
+
+@app.delete("/api/shifts/{shift_id}", status_code=204)
+def delete_shift(shift_id: int):
+    shift = db.get_shift(shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    db.delete_shift(shift_id)

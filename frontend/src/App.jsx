@@ -9,6 +9,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import ProcessControlPage from './pages/ProcessControlPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import ShiftComparePage from './pages/ShiftComparePage';
 import './App.css';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/process-control" element={<ProcessControlPage />} />
+              <Route path="/shift-compare" element={<ShiftComparePage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

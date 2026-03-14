@@ -30,5 +30,12 @@
     "lab_time_per_test_minutes": 180,
     "pol_improvement_pct": 0.2,
     "hourly_mill_revenue_inr": 400000.0
+  },
+  "mqtt": {
+    "enabled": true,
+    "broker_host": "localhost",
+    "broker_port": 1883,
+    "topic_prefix": "sugarsense",
+    "client_id": "sugarsense-backend"
   }
 }

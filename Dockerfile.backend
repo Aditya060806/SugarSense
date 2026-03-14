@@ -1,0 +1,22 @@
+# ── Backend ─────────────────────────────────────────────────────
+FROM python:3.11-slim AS backend
+
+WORKDIR /app
+
+# System deps (for numpy/scipy)
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ && rm -rf /var/lib/apt/lists/*
+
+# Python deps
+COPY backend/requirements.txt requirements-backend.txt
+RUN pip install --no-cache-dir -r requirements-backend.txt && \
+    pip install --no-cache-dir paho-mqtt sqlalchemy
+
+# Copy full project (backend + models + dataset needed at runtime)
+COPY . .
+
+WORKDIR /app/backend
+
+EXPOSE 8000
+ENV PYTHONPATH=/app
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]

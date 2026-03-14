@@ -49,6 +49,43 @@ def load_data(file_path):
     print(f"Loaded {X.shape[0]} samples with {X.shape[1]} features (wavelengths).")
     return X, y, wavelength_cols
 
+
+def load_multi_targets(file_path):
+    """
+    Load multi-output targets for Brix, Fibre, and Purity.
+
+    The Scio dataset provides:
+      - TS  (Total Sugar / Pol)
+      - ADF (Acid Detergent Fibre — strong proxy for cane Fibre%)
+
+    Brix and Purity are derived via standard sugar chemistry:
+      Brix   ≈ TS / 0.85  (Brix = total dissolved solids; Pol is ~85% of Brix for good cane)
+      Purity = (TS / Brix) × 100
+      Fibre  = ADF × 0.28 + 5.0  (linear rescale to typical cane Fibre% range 10–18%)
+
+    Returns:
+      Y_multi : ndarray shape (n_samples, 4) — [Pol, Brix, Fibre, Purity]
+      target_names : list of str
+    """
+    print(f"Loading multi-target data from {file_path}...")
+    df = pd.read_csv(file_path)
+    df['TS']  = pd.to_numeric(df['TS'],  errors='coerce')
+    df['ADF'] = pd.to_numeric(df['ADF'], errors='coerce')
+    df = df.dropna(subset=['TS', 'ADF'])
+
+    wavelength_cols = [col for col in df.columns if col.startswith('amplitude') or col.replace('.','',1).isdigit()]
+    X = df[wavelength_cols].values
+
+    pol    = df['TS'].values
+    brix   = pol / 0.85
+    purity = (pol / brix) * 100  # = 85.0 constant, but kept formula for clarity
+    fibre  = df['ADF'].values * 0.28 + 5.0  # rescaled to 10–18% range
+
+    Y_multi = np.column_stack([pol, brix, fibre, purity])
+    target_names = ['Pol', 'Brix', 'Fibre', 'Purity']
+    print(f"Multi-target dataset: {X.shape[0]} samples, targets: {target_names}")
+    return X, Y_multi, wavelength_cols, target_names
+
 def preprocess_spectra(X):
     """
     Standard Chemometrics preprocessing:
@@ -87,10 +124,34 @@ def train_pls(X_train, y_train):
 
 def train_ann(X_train, y_train):
     print("Training Artificial Neural Network (MLPRegressor)...")
-    # A simple architecture since dataset is likely small
-    ann = MLPRegressor(hidden_layer_sizes=(64, 32), max_iter=2000, random_state=42, early_stopping=True)
+    ann = MLPRegressor(hidden_layer_sizes=(64, 32), max_iter=2000, random_state=RANDOM_STATE, early_stopping=True)
     ann.fit(X_train, y_train)
     return ann
+
+
+def train_multi_pls(X_train, Y_train):
+    """
+    Train a multi-output PLS regression model.
+    Uses cross-validation on the Pol target to select optimal n_components,
+    then fits PLS jointly on all targets.
+    """
+    print("Training Multi-Output PLS Regression...")
+    cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+    best_n = 1
+    lowest_mse = float('inf')
+    max_comp = min(PLS_MAX_COMP + 1, X_train.shape[0] // 2)
+    for i in range(1, max_comp):
+        pls = PLSRegression(n_components=i)
+        score = -cross_val_score(pls, X_train, Y_train[:, 0], cv=cv,
+                                 scoring='neg_mean_squared_error').mean()
+        if score < lowest_mse:
+            lowest_mse = score
+            best_n = i
+    print(f"Best n_components for multi-PLS: {best_n} (CV MSE on Pol: {lowest_mse:.4f})")
+    multi_pls = PLSRegression(n_components=best_n)
+    multi_pls.fit(X_train, Y_train)
+    return multi_pls
+
 
 def evaluate_model(model, X_test, y_test, name="Model"):
     y_pred = model.predict(X_test)
@@ -142,8 +203,27 @@ def main():
 
     np.save('X_test_raw.npy', X[len(X_train):])
     np.save('y_test.npy', y_test)
-    
+
+    # ── Multi-Parameter PLS ──────────────────────────────────────────────────
+    print("\n── Training Multi-Parameter Model ──")
+    X_multi, Y_multi, _, target_names = load_multi_targets(dataset_path)
+    X_multi_prep = preprocess_spectra(X_multi)
+    X_train_m, X_test_m, Y_train_m, Y_test_m = train_test_split(
+        X_multi_prep, Y_multi, test_size=TEST_SPLIT, random_state=RANDOM_STATE
+    )
+    multi_pls = train_multi_pls(X_train_m, Y_train_m)
+    Y_pred_m = multi_pls.predict(X_test_m)
+    for i, name in enumerate(target_names):
+        rmse = np.sqrt(mean_squared_error(Y_test_m[:, i], Y_pred_m[:, i]))
+        r2   = r2_score(Y_test_m[:, i], Y_pred_m[:, i])
+        print(f"  {name}: RMSEP={rmse:.4f}, R²={r2:.4f}")
+    print("Saving multi_model.pkl...")
+    joblib.dump(multi_pls, 'multi_model.pkl')
+    np.save('y_test_multi.npy', Y_test_m)
+    joblib.dump(target_names, 'multi_target_names.pkl')
+
     print("Training pipeline complete.")
+
 
 if __name__ == "__main__":
     main()

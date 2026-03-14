@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BarChart3, ShieldCheck, FileText, Settings,
-  ChevronLeft, ChevronRight, Radio
+  ChevronLeft, ChevronRight, Radio, GitCompare
 } from 'lucide-react';
 import { useSimulationContext } from '../../context/SimulationContext';
 
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/process-control', icon: ShieldCheck, label: 'Process Control' },
+  { to: '/shift-compare', icon: GitCompare, label: 'Shift Compare' },
   { to: '/reports', icon: FileText, label: 'Reports' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];

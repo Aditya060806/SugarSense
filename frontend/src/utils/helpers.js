@@ -104,6 +104,21 @@ export const API = {
   predictionsHistory: () => fetchJSON('/api/predictions-history'),
   roi: () => fetchJSON('/api/roi'),
   modelComparison: () => fetchJSON('/api/model-comparison'),
+  mqttStatus: () => fetchJSON('/api/mqtt-status'),
+  shifts: {
+    list: () => fetchJSON('/api/shifts'),
+    get: (id) => fetchJSON(`/api/shifts/${id}`),
+    create: (name, threshold = 13.0) =>
+      fetch(`${API_BASE}/api/shifts/active`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, threshold }),
+      }).then(r => r.json()),
+    stopRecording: () =>
+      fetch(`${API_BASE}/api/shifts/active`, { method: 'DELETE' }).then(r => r.json()),
+    delete: (id) =>
+      fetch(`${API_BASE}/api/shifts/${id}`, { method: 'DELETE' }),
+  },
 };
 
 const wsProtocol = API_BASE.startsWith('https') ? 'wss' : 'ws';
